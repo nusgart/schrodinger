@@ -13,6 +13,7 @@ from mpl_toolkits.mplot3d import Axes3D  # noqa: F401 unused import
 import matplotlib.pyplot as plt
 from matplotlib import cm
 from matplotlib.ticker import LinearLocator, FormatStrFormatter
+import itertools
 #import pandas as pd
 #import seaborn as sns
 from numba import jit
@@ -20,6 +21,7 @@ from numba import jit
 ###############
 ### constants##
 ###############
+scale = 1e-10
 # hbar
 hbar = 1.0545718e-34 # Js
 # energy of the electron???
@@ -32,6 +34,7 @@ ech = 1.6e-19
 a = hbar ** 2 / (mass * ech * ech)
 ## simulation parameters
 N = 100
+hfN = int(N/2)
 tmax = 500
 delta = 1
 ####
@@ -42,14 +45,23 @@ t = 0
 ### Functions
 ############
 ## potential energy
-@jit
+@jit(nopython=True)
 def V(x, y, z):
-    if(x == 0 and y == 0 and z == 0):
-        return 0
+    #if(x == hfN and y == hfN and z == hfN):
+    #    return 0
     ech = 1.6e-19
-    return - ech*ech / (x*x+y*y+z*z)**.5
+    xx = (x - hfN) * scale
+    yy = (y - hfN) * scale
+    zz = (z - hfN) * scale
+    if (abs(x - hfN) < 5):
+        xx = 5 * scale
+    if (abs(y - hfN) < 5):
+        yy = 5 * scale
+    if (abs(z - hfN) < 5):
+        zz = 5 * scale
+    return - ech*ech / (xx*xx+yy*yy+zz*zz)**.5
 
-@jit
+@jit(nopython=True)
 def laplacePsi(x,y, z, h):
     ### X
     if (x >= h and x + h < N):
@@ -80,37 +92,38 @@ def laplacePsi(x,y, z, h):
         pz = psi[x, y, z] * 2
     ###
     return (px + py + pz - 6 * psi[x,y,z]) / h**2
-@jit
+@jit(nopython=True)
 def dPsiDt(x, y, z):
     return -1j * hbar / (2 * mass) * laplacePsi(x,y,z,1) + 1j  / hbar * V(x,y,z)
 
 ## update the wave function using the schrodinger equation
-@jit
-def updatePsi(dt):
+@jit(nopython=True)
+def updatePsi(psi, dt):
     for x in range(0, N):
         for y in range(0, N):
             for z in range(0, N):
                 psi[x,y,z] += dt * dPsiDt(x, y, z)
 
 ## initialize psi
-@jit
 def initPsi():
     ### initialize psi
     norm = a**1.5 / np.pi ** .5 
-    for x in range(0, N):
-        for y in range(0, N):
-            for z in range(0, N):
-                r = np.sqrt(x**2.0 + y**2.0 + z**2.0)
-                psi[x,y,z] = norm * np.exp(-r/a)
+    for x,y,z in itertools.product(*map(range, (N,N,N))):
+        xx = (x - hfN) * scale
+        yy = (y - hfN) * scale
+        zz = (z - hfN) * scale
+        r = np.sqrt(xx**2.0 + yy**2.0 + zz**2.0)
+        psi[x,y,z] = norm * np.exp(-r/a)
 
 def plotPsi():
-    if int(t) % 50 == 0:
+    if int(t) % 10 == 0:
         print(t, " wavefcn ", psi)
 
 print("Schrödinger Simulation of Hydrogen N =", N, " tmax =", tmax)
 initPsi()
+print("Starting Simulation")
 while t < tmax:
-    updatePsi(delta)
+    updatePsi(psi, delta)
     plotPsi()
     t += delta
 
@@ -119,21 +132,21 @@ print("Now writing out final data...")
 np.savez_compressed("schrödinger.dat", psi)
 print("Plotting data....")
 fig = plt.figure()
-fig = plt.figure()
 ax = fig.gca(projection='3d')
 
 # Make data.
 X = np.arange(0, 100, 1)
 Y = np.arange(0, 100, 1)
 X, Y = np.meshgrid(X, Y)
-Z = psi[X, Y, 1]
+ZZ = psi[X, Y, 50]
+Z = np.real(ZZ * np.conjugate(ZZ))
 
 # Plot the surface.
 surf = ax.plot_surface(X, Y, Z, cmap=cm.coolwarm,
                        linewidth=0, antialiased=False)
 
 # Customize the z axis.
-ax.set_zlim(-1.01, 1.01)
+#ax.set_zlim(-1.01, 1.01)
 ax.zaxis.set_major_locator(LinearLocator(10))
 ax.zaxis.set_major_formatter(FormatStrFormatter('%.02f'))
 
@@ -141,4 +154,5 @@ ax.zaxis.set_major_formatter(FormatStrFormatter('%.02f'))
 fig.colorbar(surf, shrink=0.5, aspect=5)
 
 plt.show()
+plt.save("Schrödinger.png")
 print("Done")
