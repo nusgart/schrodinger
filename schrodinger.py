@@ -50,16 +50,13 @@ def V(x, y, z):
     #if(x == hfN and y == hfN and z == hfN):
     #    return 0
     ech = 1.6e-19
-    xx = (x - hfN) * scale
-    yy = (y - hfN) * scale
-    zz = (z - hfN) * scale
-    if (abs(x - hfN) < 5):
-        xx = 5 * scale
-    if (abs(y - hfN) < 5):
-        yy = 5 * scale
-    if (abs(z - hfN) < 5):
-        zz = 5 * scale
-    return - ech*ech / (xx*xx+yy*yy+zz*zz)**.5
+    xx = (x - hfN) ** 2
+    yy = (y - hfN) ** 2
+    zz = (z - hfN) ** 2
+    rr = (xx + yy + zz ) ** .5 * scale
+    if (rr < 5 * scale):
+        rr = 5 * scale
+    return - ech*ech / rr
 
 @jit(nopython=True)
 def laplacePsi(x,y, z, h):
@@ -154,5 +151,5 @@ ax.zaxis.set_major_formatter(FormatStrFormatter('%.02f'))
 fig.colorbar(surf, shrink=0.5, aspect=5)
 
 plt.show()
-plt.save("Schrödinger.png")
+fig.save("Schrödinger.png")
 print("Done")
